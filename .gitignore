@@ -1,0 +1,16 @@
+.gradle
+.idea/
+*.iws
+*.iml
+*.ipr
+.kotlin
+.run
+build/
+!gradle/wrapper/gradle-wrapper.jar
+logs
+### Database File of Project ###
+database.xml
+
+### Mac OS ###
+.DS_Store
+
