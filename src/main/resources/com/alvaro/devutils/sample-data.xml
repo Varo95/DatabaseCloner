@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Root>
+    <DatabaseConnections>
+        <DatabaseConnection name="Remote-Oracle" jdbcUrl="jdbc:oracle:thin:@192.168.0.2:1521/ee">
+            <Users>
+                <User username="TEST" password="test01"/>
+                <User username="TEST2" password="test02"/>
+            </Users>
+        </DatabaseConnection>
+        <DatabaseConnection name="Local-Oracle" jdbcUrl="jdbc:oracle:thin:@localhost:1521/ee">
+            <Users>
+                <User username="SYSTEM" password="root"/>
+            </Users>
+        </DatabaseConnection>
+    </DatabaseConnections>
+    <DockerParams>
+        <ImageType>ORACLE</ImageType>
+        <ContainerName>Oracle-DataBase</ContainerName>
+        <ContainerPort>1521</ContainerPort>
+        <ContainerVolumeName>oracle-data</ContainerVolumeName>
+        <ContainerVersion>21.3.0.0</ContainerVersion>
+        <User username="your@email.com" password="yourSafePassword"/>
+        <RootPassword>root</RootPassword>
+    </DockerParams>
+</Root>

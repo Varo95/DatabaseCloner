@@ -6,6 +6,7 @@ import com.alvaro.devutils.model.XMLWrapper
 import com.alvaro.devutils.tools.Docker
 import com.alvaro.devutils.tools.OracleClone
 import com.alvaro.devutils.tools.Utils
+import javafx.application.Platform
 import javafx.beans.value.ObservableValue
 import javafx.collections.FXCollections
 import javafx.concurrent.Task
@@ -17,7 +18,6 @@ import javafx.scene.control.ComboBox
 import javafx.scene.control.Label
 import javafx.scene.control.ProgressBar
 import java.time.LocalDateTime
-import java.time.ZoneOffset
 
 open class MainController {
     @FXML
@@ -51,39 +51,35 @@ open class MainController {
         }
         this.btnClone.setOnAction {
             val startTime: LocalDateTime = LocalDateTime.now()
-            var docker: Docker? = null
+            var dockerThread: Thread? = null
             if(this.cbDocker.isSelected){
-                docker = Docker(xmlWrapper?.dockerParams!!)
+                val docker = Docker(xmlWrapper?.dockerParams!!)
                 docker.setOnRunning {
                     this.bindProperties(it)
                 }
                 docker.setOnSucceeded {
                     this.unbindProperties()
                 }
-                val thread: Thread = Thread(docker)
-                thread.isDaemon = true
-                thread.start()
+                dockerThread = Thread(docker)
+                dockerThread.isDaemon = true
             }
             if(this.cbOrigin.selectionModel.selectedItem == null || this.cbTarget.selectionModel.selectedItem == null){
                 return@setOnAction
             }
             val recreateUsers: Boolean = this.cbUsers.isSelected
-            val cloneObjectUtil: CloneObjectUtil = CloneObjectUtil(recreateUsers, recreateUsers, this.cbOrigin.selectionModel.selectedItem, this.cbTarget.selectionModel.selectedItem)
-            var cloneObject: Task<String>? = null
+            val cloneObjectUtil: CloneObjectUtil = CloneObjectUtil(recreateUsers, this.cbOrigin.selectionModel.selectedItem, this.cbTarget.selectionModel.selectedItem)
+            var cloneTask: Thread? = null
             when(this.cbDBType.selectionModel.selectedItem) {
                 "Oracle" -> {
-                    this.lbGeneral.textProperty().unbind()
-                    this.lbSpecific.textProperty().unbind()
-                    cloneObject = OracleClone(cloneObjectUtil, docker)
-                    cloneObject.setOnRunning {
+                    val cloneData: OracleClone = OracleClone(cloneObjectUtil)
+                    cloneData.setOnRunning {
                         this.bindProperties(it)
                     }
-                    cloneObject.setOnSucceeded {
+                    cloneData.setOnSucceeded {
                         this.unbindProperties()
                     }
-                    val thread: Thread = Thread(cloneObject)
-                    thread.isDaemon = true
-                    thread.start()
+                    cloneTask = Thread(cloneData)
+                    cloneTask.isDaemon = true
                 }
                 "PostgreSQL" -> {
                     println("PostgreSQL")
@@ -95,16 +91,21 @@ open class MainController {
                     println("SQL Server")
                 }
             }
-            cloneObject?.setOnSucceeded {
-                val endTime: LocalDateTime = LocalDateTime.now()
-                //Calcular el tiempo total restando el total de ambos tiempos en milisegundos y despues convertirlo a horas, minutos y segundos
-                val totalTime: Long = endTime.toEpochSecond(ZoneOffset.UTC) - startTime.toEpochSecond(ZoneOffset.UTC)
-                val hours: Long = totalTime / 3600
-                val minutes: Long = (totalTime % 3600) / 60
-                val seconds: Long = totalTime % 60
-                this.lbTime.text = "${endTime.hour - startTime.hour}:${endTime.minute - startTime.minute}:${endTime.second - startTime.second}"
-                this.disableEnableControls(false)
+            val joinedThreads: Thread = object : Thread() {
+                override fun run() {
+                    dockerThread?.start()
+                    dockerThread?.join()
+                    cloneTask?.start()
+                    cloneTask?.join()
+                    Platform.runLater{
+                        val endTime: LocalDateTime = LocalDateTime.now()
+                        //Calcular el tiempo total restando el total de ambos tiempos en milisegundos y despues convertirlo a horas, minutos y segundos
+                        lbTime.text = "${endTime.hour - startTime.hour}:${endTime.minute - startTime.minute}:${endTime.second - startTime.second}"
+                        disableEnableControls(false)
+                    }
+                }
             }
+            joinedThreads.start()
         }
     }
 

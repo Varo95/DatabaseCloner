@@ -13,7 +13,6 @@ class Docker(private val dockerParams: DockerParams) : Task<String>() {
 
     private val downloadProgressStrings: MutableList<String> = mutableListOf()
     private val commands: Array<String>
-    private val maxProgress: Double
 
     init {
         when (this.dockerParams.imageType) {
@@ -30,12 +29,11 @@ class Docker(private val dockerParams: DockerParams) : Task<String>() {
             ImageType.SQLSERVER -> TODO()
             null -> this.commands = arrayOf()
         }
-        this.maxProgress = this.commands.size.toDouble()
     }
 
     override fun call(): String {
         try {
-            for (command in this.commands) {
+            for ((actualProgress, command) in this.commands.withIndex()) {
                 val proc: java.lang.Process = ProcessBuilder(command.split(" ")).start()
                 proc.inputStream.reader().buffered().use { reader ->
                     val outputText: String = when {
@@ -53,11 +51,12 @@ class Docker(private val dockerParams: DockerParams) : Task<String>() {
                             (line as String).contains("Download complete") -> {
                                 val beforeSize = this.downloadProgressStrings.size
                                 this.downloadProgressStrings.remove(line?.split(":")!![0])
-                                this.updateProgress((0.9 - (this.downloadProgressStrings.size.toDouble() / beforeSize)) + 2.0, 4.0)
+                                //TODO revisar si se puede mejorar este progreso
+                                this.updateProgress((((actualProgress - 0.1) - (this.downloadProgressStrings.size.toDouble() / beforeSize))) + actualProgress, this.commands.size.toDouble())
                             }
                             (line as String).contains("% complete") -> {
-                                val progress = (line?.split(" ")!![0].split("%")[0].toDouble() / 100) + 3.0
-                                this.updateProgress(progress, this.maxProgress)
+                                val progress = (line?.split(" ")!![0].split("%")[0].toDouble() / 100) + actualProgress
+                                this.updateProgress(progress, this.commands.size.toDouble())
                             }
                             (line as String).contains("DATABASE IS READY TO USE!") -> {
                                 reader.close()
@@ -69,12 +68,7 @@ class Docker(private val dockerParams: DockerParams) : Task<String>() {
                     }
                 }
                 proc.waitFor()
-                when {
-                    command.contains("docker login") -> this.updateProgress(1.0, this.maxProgress)
-                    command.contains("docker volume create") -> this.updateProgress(2.0, this.maxProgress)
-                    command.contains("docker pull") -> this.updateProgress(3.0, this.maxProgress)
-                    command.contains("docker run") -> this.updateProgress(4.0, this.maxProgress)
-                }
+                this.updateProgress(actualProgress + 1L, this.commands.size.toLong())
             }
             return "Creado contenedor ${this.dockerParams.containerName} en docker"
         } catch (e: Exception) {

@@ -25,27 +25,19 @@ import java.util.concurrent.CopyOnWriteArrayList
  * Clase que se encarga de clonar una base de datos Oracle a otra base de datos Oracle. Esta clase hereda de Process para poder ejecutar el proceso
  * en un hilo diferente a javafx y no bloquear la interfaz de usuario.
  * @param cloneObjectUtil objeto con los datos necesarios para la clonacion
- * @param progressBar ProgressBar para avanzar el progreso de la clonacion
+ * @param docker objeto docker para ejecutar el clonado después de la creación del contenedor
  */
-class OracleClone(private val cloneObjectUtil: CloneObjectUtil, private val docker: Docker?): Task<String>() {
+class OracleClone(private val cloneObjectUtil: CloneObjectUtil): Task<String>() {
 
     companion object {
         private val log: Logger = LoggerFactory.getLogger(OracleClone::class.java)
     }
 
+    private var maxProgressBar: Long = 0
+    private var actualProgressBar: Long = 0
 
-    public override fun call(): String {
-        if(docker != null){
-            docker.setOnSucceeded {
-                this.initClone()
-            }
-        }else{
-            initClone()
-        }
-        return ""
-    }
 
-    private fun initClone(){
+    public override fun call(): String{
         this.updateMessage("Iniciando clonado")
         val targetJdbcUrl: String? = cloneObjectUtil.target.jdbcUrl
         val targetUsers: List<User>? = cloneObjectUtil.target.users
@@ -77,22 +69,18 @@ class OracleClone(private val cloneObjectUtil: CloneObjectUtil, private val dock
                                 this.updateValue("${userComments.size} comentarios obtenidos del usuario ${originUser.username}")
                                 log.info("{} comentarios obtenidos del usuario {}", userComments.size, originUser.username)
                                 databaseViewsComments.add(UserViewsComments(userViews, userComments))
-                                //this.progressBar.progress += ((1.0 / originUsers.size)/2)
+                                this.maxProgressBar += userSequences.size + userTables.size + userViews.size + userComments.size
                             }
                         } catch (e: SQLException) {
                             log.error(e.message, e)
                             //Fallo con la conexion en origen del usuario
                         }
                     }
+                    this.updateProgress(0, this.maxProgressBar)
                     this.updateMessage("Clonando secuencias, tablas, vistas y comentarios")
-                    if(this.cloneObjectUtil.deleteUsers) {
-                        this.updateValue("Eliminando ${originUsers?.size} usuarios")
-                        this.deleteTargetUsers(targetConnection)
-                    }
-                    if(this.cloneObjectUtil.createUsers) {
-                        this.updateValue("Creando ${originUsers?.size} usuarios")
-                        this.createTargetUsers(targetConnection)
-                        this.executeQuery(targetConnection, "ALTER PROFILE DEFAULT LIMIT PASSWORD_LIFE_TIME UNLIMITED")
+                    if(this.cloneObjectUtil.recreateTarget){
+                        this.updateValue("Recreando base de datos destino")
+                        this.recreateTarget(targetConnection)
                     }
                     databaseSequencesTables.forEach { databaseSequencesTable: UserSequencesTable ->
                         databaseSequencesTable.sequences.forEach { sequence ->
@@ -123,7 +111,6 @@ class OracleClone(private val cloneObjectUtil: CloneObjectUtil, private val dock
                         }
                     }
                 }
-                //this.progressBar.progress = 1.0
                 this.updateMessage("Clonado finalizado")
                 //Paramos 5 segundos y limpiamos el mensaje
                 Thread.sleep(5000)
@@ -134,6 +121,7 @@ class OracleClone(private val cloneObjectUtil: CloneObjectUtil, private val dock
                 //Fallo con la conexion en destino
             }
         }
+        return ""
     }
 
     /**
@@ -222,22 +210,29 @@ class OracleClone(private val cloneObjectUtil: CloneObjectUtil, private val dock
         return result
     }
 
-    private fun deleteTargetUsers(targetConnection: Connection) {
-        if (this.cloneObjectUtil.deleteUsers) {
+    private fun recreateTarget(targetConnection: Connection){
+        //TODO cambiar a recreateTarget
+        targetConnection.prepareStatement("SELECT USERNAME FROM ALL_USERS").use{ ps->
             this.executeQuery(targetConnection, "ALTER SESSION SET \"_ORACLE_SCRIPT\" = TRUE")
-            this.cloneObjectUtil.origin.users?.forEach { user ->
-                this.executeQuery(targetConnection, "DROP USER ${user.username} CASCADE")
+            ps.executeQuery().use{ rs->
+                while(rs.next()){
+                    val username = rs.getString(1)
+                    if(this.cloneObjectUtil.origin.users?.any{ it.username == username } == true){
+                        this.executeQuery(targetConnection, "DROP USER $username CASCADE")
+                        println("Usuario $username eliminado")
+                    }
+                }
             }
+            this.createTargetUsers(targetConnection)
+            this.executeQuery(targetConnection, "ALTER PROFILE DEFAULT LIMIT PASSWORD_LIFE_TIME UNLIMITED")
         }
     }
 
     private fun createTargetUsers(targetConnection: Connection) {
-        if (this.cloneObjectUtil.createUsers) {
-            this.cloneObjectUtil.origin.users?.forEach { user ->
-                this.executeQuery(targetConnection, "CREATE USER ${user.username} IDENTIFIED BY ${user.password}")
-                //TODO tener cuidado con el grant all a la hora de hacer el clonado en sitios sensibles
-                this.executeQuery(targetConnection, "GRANT ALL PRIVILEGES TO ${user.username}")
-            }
+        this.cloneObjectUtil.origin.users?.forEach { user ->
+            this.executeQuery(targetConnection, "CREATE USER ${user.username} IDENTIFIED BY ${user.password}")
+            //TODO tener cuidado con el grant all a la hora de hacer el clonado en sitios sensibles
+            this.executeQuery(targetConnection, "GRANT ALL PRIVILEGES TO ${user.username}")
         }
     }
 
@@ -358,6 +353,7 @@ class OracleClone(private val cloneObjectUtil: CloneObjectUtil, private val dock
                 }
             }
             log.info("${result.size} filas obtenidas de la tabla ${selectQuery.split(" ")[3]}")
+            this.maxProgressBar += result.size
         } catch (e: SQLException) {
             log.error(e.message, e)
             //Hubo un error al intentar recuperar los datos de la tabla
@@ -433,10 +429,11 @@ class OracleClone(private val cloneObjectUtil: CloneObjectUtil, private val dock
         try {
             target.prepareStatement(query).use { ps ->
                 val executed: Int = ps.executeUpdate()
-                log.debug("Query executed: {} rows affected", executed)
+                log.trace("Query executed: {} rows affected", executed)
+                log.trace("Query executed: $query")
+                this.updateProgress(++this.actualProgressBar, this.maxProgressBar)
             }
         } catch (e: SQLException) {
-            log.error("Query mal formada: $query")
             log.error(e.message, e)
             //Hubo un error al ejecutar la sentencia query
         }
@@ -476,7 +473,8 @@ class OracleClone(private val cloneObjectUtil: CloneObjectUtil, private val dock
                         }
                     }
                     val executed: Int = ps.executeUpdate()
-                    //log.debug("Query executed: {} rows affected", executed)
+                    log.trace("Query executed: {} rows affected", executed)
+                    this.updateProgress(++this.actualProgressBar, this.maxProgressBar)
                 }
             } catch (e: SQLException) {
                 log.error(e.message, e)
@@ -504,6 +502,15 @@ class OracleClone(private val cloneObjectUtil: CloneObjectUtil, private val dock
         }
         return result
     }
+
+    /**
+     * Función recursiva que se encarga de ordenar las tablas
+     * @param table tabla a ordenar
+     * @param tableListMap mapa de tablas
+     * @param visited tablas visitadas
+     * @param visiting tablas visitando
+     * @param result resultado con las tablas ordenadas
+     */
 
     private fun topologicalSortUtil(table: Table, tableListMap: Map<Table, MutableList<Table>>, visited: MutableSet<Table>, visiting: MutableSet<Table>, result: MutableList<Table>) {
         if (visiting.contains(table)) {

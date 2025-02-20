@@ -51,7 +51,7 @@ class Table(val tableName: String) {
     }
 
     /**
-     * Esta funcion se utiliza para añadir los campos y sis tipos al create table.
+     * Esta funcion se utiliza para añadir los campos y sus tipos al create table.
      * Además en la select query se añade para que se ordene por el primer campo. Esto es importante debido a que puede haber referencias en la misma tabla
      * @param columnName Nombre de la columna
      * @param type Tipo de la columna
@@ -135,13 +135,12 @@ data class Row(val columnValues: List<Any?>)
 
 /**
  * Objeto que representa los datos necesarios para hacer la clonación de una BBDD a otra.
- * @param deleteUsers Indica si se deben de borrar los usuarios de la BBDD destino
- * @param createUsers Indica si se deben de crear los usuarios de la BBDD origen en la BBDD destino
+ * @param recreateTarget Indica si se debe rehacer la base de datos destino. Borrando todos los datos de los usuarios
  * @param origin Conexión a la BBDD origen
  * @param target Conexión a la BBDD destino
  */
 @JvmRecord
-data class CloneObjectUtil(val deleteUsers: Boolean, val createUsers: Boolean, val origin: DatabaseConnection, val target: DatabaseConnection)
+data class CloneObjectUtil(val recreateTarget: Boolean, val origin: DatabaseConnection, val target: DatabaseConnection)
 
 /**
  * Objeto que agrupa las vistas y los comentarios.

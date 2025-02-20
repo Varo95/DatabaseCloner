@@ -6,7 +6,7 @@ plugins {
     kotlin("jvm") version "2.1.0"
     id("org.openjfx.javafxplugin") version "0.1.0"
     id("com.google.osdetector") version "1.7.3"
-    id("org.jetbrains.compose") version "1.8.0-dev1905"
+    id("org.jetbrains.compose") version "1.8.0-alpha03"
     id("org.jetbrains.kotlin.plugin.compose") version "2.1.0"
 }
 
@@ -33,7 +33,6 @@ dependencies {
     implementation(libs.org.apache.logging.log4j.log4j.core)
     implementation(libs.org.apache.logging.log4j.log4j.slf4j.impl)
     implementation(libs.com.oracle.database.jdbc.ojdbc11)
-    implementation(libs.io.reactivex.rxjava3.rxjava)
     val fxVersion = "23.0.2"
     val fxModules: List<String> = listOf("javafx-base", "javafx-controls", "javafx-fxml", "javafx-graphics")
 
@@ -41,6 +40,8 @@ dependencies {
         implementation("org.openjfx:$module:$fxVersion")
     }
     implementation(compose.desktop.currentOs)
+    testImplementation(libs.org.jetbrains.kotlin.kotlin.test)
+    testImplementation(libs.io.mockk.mockk)
 }
 
 group = "com.alvaro.devutils"

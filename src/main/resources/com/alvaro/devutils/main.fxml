@@ -30,7 +30,7 @@
                 </rowConstraints>
                 <Label text="%database.type" GridPane.halignment="CENTER" />
                 <ComboBox fx:id="cbDBType" GridPane.halignment="CENTER" GridPane.rowIndex="1" />
-            <CheckBox fx:id="cbUsers" allowIndeterminate="true" mnemonicParsing="false" text="%users.delete-and-create" GridPane.columnIndex="1" />
+            <CheckBox fx:id="cbUsers" mnemonicParsing="false" text="%users.delete-and-create" GridPane.columnIndex="1" />
             <CheckBox fx:id="cbDocker" mnemonicParsing="false" text="%docker.create" GridPane.columnIndex="1" GridPane.rowIndex="1" />
             </GridPane>
             <GridPane GridPane.rowIndex="2">

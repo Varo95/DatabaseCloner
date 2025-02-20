@@ -1,4 +1,12 @@
 package com.alvaro.devutils.tools
 
-class MYSQLClone {
+import javafx.concurrent.Task
+
+class MYSQLClone(): Task<String>() {
+
+
+    override fun call(): String {
+        return ""
+    }
+
 }

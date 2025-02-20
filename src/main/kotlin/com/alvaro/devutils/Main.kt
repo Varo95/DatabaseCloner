@@ -40,28 +40,5 @@ fun main(args: Array<String>) {
 }
 
 fun testWrite(){
-    val dockerParams: DockerParams = DockerParams()
-    dockerParams.containerName = "PruebaDDBB"
-    dockerParams.containerPort = 1995
-    dockerParams.imageVersion = "19.0.0.3"
-    dockerParams.volumeName = "oracle-data"
-    dockerParams.user = User("prueba@hotmail.com", "prueba")
-    dockerParams.rootPassword = "root"
-    dockerParams.imageType = ImageType.ORACLE
-    val databaseOrigin: DatabaseConnection = DatabaseConnection()
-    databaseOrigin.name = "Remoto"
-    databaseOrigin.jdbcUrl = "jdbc:oracle:thin:@//192.168.0.225:1521/xe"
-    databaseOrigin.users = listOf(User("SYSTEM", "oracle"), User("ALVARO", "oracle"))
-    val databaseTarget: DatabaseConnection = DatabaseConnection()
-    databaseTarget.name = "Local"
-    databaseTarget.jdbcUrl = "jdbc:oracle:thin:@//localhost:1521/xe"
-    databaseTarget.users = listOf(User("SYSTEM2", "oracle2"), User("ALVARO2", "oracle2"))
-    val wrapper: XMLWrapper = XMLWrapper()
-    wrapper.dockerParams = dockerParams
-    wrapper.databaseConnections = listOf(databaseOrigin, databaseTarget)
-    FileOutputStream("database.xml").use{ fos->
-        val marshaller = JAXBContext.newInstance(XMLWrapper::class.java).createMarshaller()
-        marshaller.setProperty(Marshaller.JAXB_FORMATTED_OUTPUT, true)
-        marshaller.marshal(wrapper, fos)
-    }
+
 }
