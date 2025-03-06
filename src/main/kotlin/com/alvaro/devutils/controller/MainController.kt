@@ -9,7 +9,6 @@ import com.alvaro.devutils.tools.Utils
 import javafx.application.Platform
 import javafx.beans.value.ObservableValue
 import javafx.collections.FXCollections
-import javafx.concurrent.Task
 import javafx.concurrent.WorkerStateEvent
 import javafx.fxml.FXML
 import javafx.scene.control.Button
@@ -18,6 +17,7 @@ import javafx.scene.control.ComboBox
 import javafx.scene.control.Label
 import javafx.scene.control.ProgressBar
 import java.time.LocalDateTime
+import java.util.concurrent.TimeUnit
 
 open class MainController {
     @FXML
@@ -50,7 +50,7 @@ open class MainController {
             this.cbTarget.items.addAll(FXCollections.observableList(xmlWrapper.databaseConnections))
         }
         this.btnClone.setOnAction {
-            val startTime: LocalDateTime = LocalDateTime.now()
+            val startTime: Long = System.currentTimeMillis()
             var dockerThread: Thread? = null
             if(this.cbDocker.isSelected){
                 val docker = Docker(xmlWrapper?.dockerParams!!)
@@ -98,9 +98,12 @@ open class MainController {
                     cloneTask?.start()
                     cloneTask?.join()
                     Platform.runLater{
-                        val endTime: LocalDateTime = LocalDateTime.now()
-                        //Calcular el tiempo total restando el total de ambos tiempos en milisegundos y despues convertirlo a horas, minutos y segundos
-                        lbTime.text = "${endTime.hour - startTime.hour}:${endTime.minute - startTime.minute}:${endTime.second - startTime.second}"
+                        val endTime: Long = System.currentTimeMillis()
+                        val totalTime: Long = TimeUnit.MILLISECONDS.toSeconds(endTime - startTime)
+                        val hours: Long = TimeUnit.SECONDS.toHours(totalTime)
+                        val minutes: Long = TimeUnit.SECONDS.toMinutes(totalTime) - TimeUnit.HOURS.toMinutes(hours)
+                        val seconds: Long = totalTime - TimeUnit.MINUTES.toSeconds(minutes) - TimeUnit.HOURS.toSeconds(hours)
+                        lbTime.text = "Tiempo total: $hours:$minutes:$seconds"
                         disableEnableControls(false)
                     }
                 }

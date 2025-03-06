@@ -5,7 +5,6 @@ plugins {
     `maven-publish`
     kotlin("jvm") version "2.1.0"
     id("org.openjfx.javafxplugin") version "0.1.0"
-    id("com.google.osdetector") version "1.7.3"
     id("org.jetbrains.compose") version "1.8.0-alpha03"
     id("org.jetbrains.kotlin.plugin.compose") version "2.1.0"
 }
@@ -45,8 +44,8 @@ dependencies {
 }
 
 group = "com.alvaro.devutils"
-version = "0.1-SNAPSHOT"
-description = "devutils"
+version = "1.0.0"
+description = "DatabaseCloner"
 java.sourceCompatibility = JavaVersion.VERSION_21
 
 publishing {
@@ -73,8 +72,8 @@ compose.desktop {
         nativeDistributions {
             includeAllModules = true
             targetFormats(TargetFormat.Exe,TargetFormat.Dmg, TargetFormat.Msi, TargetFormat.Deb)
-            packageName = "devutils"
-            packageVersion = "1.0.0"
+            packageName = description
+            packageVersion = version.toString()
         }
     }
 

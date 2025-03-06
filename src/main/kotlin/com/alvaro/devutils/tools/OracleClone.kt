@@ -7,6 +7,7 @@ import com.alvaro.devutils.model.Row
 import com.alvaro.devutils.model.SpecialDBObject
 import com.alvaro.devutils.model.Table
 import com.alvaro.devutils.model.User
+import com.alvaro.devutils.model.UserData
 import com.alvaro.devutils.model.UserSequencesTable
 import com.alvaro.devutils.model.UserViewsComments
 import javafx.concurrent.Task
@@ -25,7 +26,6 @@ import java.util.concurrent.CopyOnWriteArrayList
  * Clase que se encarga de clonar una base de datos Oracle a otra base de datos Oracle. Esta clase hereda de Process para poder ejecutar el proceso
  * en un hilo diferente a javafx y no bloquear la interfaz de usuario.
  * @param cloneObjectUtil objeto con los datos necesarios para la clonacion
- * @param docker objeto docker para ejecutar el clonado después de la creación del contenedor
  */
 class OracleClone(private val cloneObjectUtil: CloneObjectUtil): Task<String>() {
 
@@ -39,37 +39,19 @@ class OracleClone(private val cloneObjectUtil: CloneObjectUtil): Task<String>() 
 
     public override fun call(): String{
         this.updateMessage("Iniciando clonado")
-        val targetJdbcUrl: String? = cloneObjectUtil.target.jdbcUrl
-        val targetUsers: List<User>? = cloneObjectUtil.target.users
-        val originJdbcUrl: String? = cloneObjectUtil.origin.jdbcUrl
-        val originUsers: List<User>? = cloneObjectUtil.origin.users
+        val targetJdbcUrl: String? = this.cloneObjectUtil.target.jdbcUrl
+        val targetUsers: List<User>? = this.cloneObjectUtil.target.users
+        val originJdbcUrl: String? = this.cloneObjectUtil.origin.jdbcUrl
+        val originUsers: List<User>? = this.cloneObjectUtil.origin.users
         targetUsers?.forEach { targetUser: User ->
             try {
-                DriverManager.getConnection(targetJdbcUrl, targetUser.username, targetUser.password).use { targetConnection ->
-                    val databaseSequencesTables: MutableList<UserSequencesTable> = CopyOnWriteArrayList()
-                    val databaseViewsComments: MutableList<UserViewsComments> = CopyOnWriteArrayList()
+                DriverManager.getConnection(targetJdbcUrl, targetUser.username, targetUser.password).use { targetConnection: Connection ->
+                    val usersData: MutableList<UserData> = CopyOnWriteArrayList()
                     this.updateMessage("Obteniendo datos de origen")
                     originUsers?.forEach { originUser: User ->
                         try {
-                            DriverManager.getConnection(originJdbcUrl, originUser.username, originUser.password).use { originConnection ->
-                                val userSequences: List<String> = this.getOriginUserSequences(originConnection, originUser.username!!)
-                                this.updateValue("${userSequences.size} secuencias obtenidas del usuario ${originUser.username}")
-                                log.info("{} secuencias obtenidas del usuario {}", userSequences.size, originUser.username)
-
-                                val userTables: List<Table> = this.getOriginUserTableObject(originConnection, originUser.username!!)
-                                this.updateValue("${userTables.size} tablas obtenidas del usuario ${originUser.username}")
-                                log.info("{} tablas obtenidas del usuario {}", userTables.size, originUser.username)
-                                databaseSequencesTables.add(UserSequencesTable(userSequences, userTables))
-
-                                val userViews: List<String> = this.getOriginUserViews(originConnection, originUser.username!!)
-                                this.updateValue("${userViews.size} vistas obtenidas del usuario ${originUser.username}")
-                                log.info("{} vistas obtenidas del usuario {}", userViews.size, originUser.username)
-
-                                val userComments: List<Comment> = this.getOriginUserComments(originConnection, originUser.username!!)
-                                this.updateValue("${userComments.size} comentarios obtenidos del usuario ${originUser.username}")
-                                log.info("{} comentarios obtenidos del usuario {}", userComments.size, originUser.username)
-                                databaseViewsComments.add(UserViewsComments(userViews, userComments))
-                                this.maxProgressBar += userSequences.size + userTables.size + userViews.size + userComments.size
+                            DriverManager.getConnection(originJdbcUrl, originUser.username, originUser.password).use { originConnection: Connection ->
+                                usersData.add(this.getUserData(originUser, originConnection))
                             }
                         } catch (e: SQLException) {
                             log.error(e.message, e)
@@ -77,38 +59,15 @@ class OracleClone(private val cloneObjectUtil: CloneObjectUtil): Task<String>() 
                         }
                     }
                     this.updateProgress(0, this.maxProgressBar)
-                    this.updateMessage("Clonando secuencias, tablas, vistas y comentarios")
                     if(this.cloneObjectUtil.recreateTarget){
-                        this.updateValue("Recreando base de datos destino")
+                        this.updateValue("Recreando usuarios en la base de datos destino")
                         this.recreateTarget(targetConnection)
                     }
-                    databaseSequencesTables.forEach { databaseSequencesTable: UserSequencesTable ->
-                        databaseSequencesTable.sequences.forEach { sequence ->
-                            this.updateValue("Creando secuencia $sequence")
-                            this.executeQuery(targetConnection, sequence)
-                        }
-                        databaseSequencesTable.tables.forEach { table ->
-                            this.updateValue("Creando tabla ${table.tableName}")
-                            this.executeQuery(targetConnection, table.getCreateTable())
-                            if(table.getAlterTablePK() != null) {
-                                this.executeQuery(targetConnection, table.getAlterTablePK())
-                            }
-                            table.alterTableFK.forEach { alterTableFk ->
-                                this.executeQuery(targetConnection, alterTableFk)
-                            }
-                            this.updateValue("Insertando datos en la tabla ${table.tableName}")
-                            this.insertData(targetConnection, table.rows, table.getInsertInto())
-                        }
+                    usersData.forEach{ userData: UserData ->
+                        this.insertUserDataSequenceTables(targetConnection, userData.userSequencesTable)
                     }
-                    databaseViewsComments.forEach { databaseViewsCommentsTable: UserViewsComments ->
-                        databaseViewsCommentsTable.comments.forEach { comment ->
-                            this.updateValue("Insertando comentario en la tabla ${comment.insertComment.split(" ")[3]}")
-                            this.executeQuery(targetConnection, comment.insertComment)
-                        }
-                        databaseViewsCommentsTable.views.forEach { view ->
-                            this.updateValue("Creando vista ${view.split(" ")[2]}")
-                            this.executeQuery(targetConnection, view)
-                        }
+                    usersData.forEach{ userData: UserData ->
+                        this.insertUserDataViewsComments(targetConnection, userData.userViewsComments)
                     }
                 }
                 this.updateMessage("Clonado finalizado")
@@ -124,6 +83,59 @@ class OracleClone(private val cloneObjectUtil: CloneObjectUtil): Task<String>() 
         return ""
     }
 
+    private fun insertUserDataSequenceTables(targetConnection: Connection, userDataSequencesTable: UserSequencesTable?){
+        userDataSequencesTable?.sequences?.forEach { sequence: String ->
+            this.updateValue("Creando secuencia $sequence")
+            this.executeQuery(targetConnection, sequence)
+        }
+        userDataSequencesTable?.tables?.forEach { table: Table ->
+            this.updateValue("Creando tabla ${table.tableName}")
+            this.executeQuery(targetConnection, table.getCreateTable())
+            if(table.getAlterTablePK() != null) {
+                this.executeQuery(targetConnection, table.getAlterTablePK())
+            }
+            table.alterTableFK.forEach { alterTableFk: String ->
+                if(alterTableFk.trim().isNotEmpty()) {
+                    this.executeQuery(targetConnection, alterTableFk)
+                }
+            }
+            this.updateValue("Insertando datos en la tabla ${table.tableName}")
+            this.insertData(targetConnection, table.rows, table.getInsertInto())
+        }
+    }
+
+    private fun insertUserDataViewsComments(targetConnection: Connection, userDataViewsComments: UserViewsComments?){
+        userDataViewsComments?.views?.forEach { view: String ->
+            this.updateValue("Creando vista ${view.split(" ")[2]}")
+            this.executeQuery(targetConnection, view)
+        }
+        userDataViewsComments?.comments?.forEach { comment: Comment ->
+            this.updateValue("Insertando comentario en la tabla ${comment.insertComment.split(" ")[3]}")
+            this.executeQuery(targetConnection, comment.insertComment)
+        }
+    }
+
+    private fun getUserData(originUser: User, originConnection: Connection): UserData {
+        val userSequences: List<String> = this.getOriginUserSequences(originConnection, originUser.username!!)
+        this.updateValue("${userSequences.size} secuencias obtenidas del usuario ${originUser.username}")
+        log.info("{} secuencias obtenidas del usuario {}", userSequences.size, originUser.username)
+
+        val userTables: List<Table> = this.getOriginUserTableObject(originConnection, originUser.username!!)
+        this.updateValue("${userTables.size} tablas obtenidas del usuario ${originUser.username}")
+        log.info("{} tablas obtenidas del usuario {}", userTables.size, originUser.username)
+
+        val userViews: List<String> = this.getOriginUserViews(originConnection, originUser.username!!)
+        this.updateValue("${userViews.size} vistas obtenidas del usuario ${originUser.username}")
+        log.info("{} vistas obtenidas del usuario {}", userViews.size, originUser.username)
+
+        val userComments: List<Comment> = this.getOriginUserComments(originConnection, originUser.username!!)
+        this.updateValue("${userComments.size} comentarios obtenidos del usuario ${originUser.username}")
+        log.info("{} comentarios obtenidos del usuario {}", userComments.size, originUser.username)
+
+        this.maxProgressBar += userSequences.size + userTables.size + userViews.size + userComments.size
+        return UserData(UserSequencesTable(userSequences, userTables), UserViewsComments(userViews, userComments))
+    }
+
     /**
      * Obtiene la lista de create sequences a partir de la conexion de origen
      *
@@ -133,13 +145,13 @@ class OracleClone(private val cloneObjectUtil: CloneObjectUtil): Task<String>() 
      */
     private fun getOriginUserSequences(originConnection: Connection, originUser: String): List<String> {
         val result: MutableList<String> = CopyOnWriteArrayList()
-        val selectSequences = "SELECT o.owner AS sequence_owner, o.object_name as sequence_name FROM all_objects o WHERE o.owner ='$originUser' AND o.object_type='SEQUENCE' ORDER BY 1,2"
+        val selectSequences = "SELECT o.owner, o.object_name FROM all_objects o WHERE o.owner ='$originUser' AND o.object_type='SEQUENCE' ORDER BY 1,2"
         try {
-            originConnection.prepareStatement(selectSequences).use { psSequences ->
-                psSequences.executeQuery().use { rsSequences ->
+            originConnection.prepareStatement(selectSequences).use { psSequences: PreparedStatement ->
+                psSequences.executeQuery().use { rsSequences: ResultSet ->
                     while (rsSequences.next()) {
-                        val sequenceName = rsSequences.getString(2)
-                        val sequenceOwner = rsSequences.getString(1)
+                        val sequenceName: String = rsSequences.getString(2)
+                        val sequenceOwner: String = rsSequences.getString(1)
                         val psSeqCurrVal: PreparedStatement = originConnection.prepareStatement("SELECT $sequenceOwner.$sequenceName.NEXTVAL FROM DUAL")
                         val rsSeqCurrVal: ResultSet = psSeqCurrVal.executeQuery()
                         rsSeqCurrVal.next()
@@ -149,7 +161,6 @@ class OracleClone(private val cloneObjectUtil: CloneObjectUtil): Task<String>() 
                     }
                 }
             }
-            this.updateValue("${result.size} secuencias obtenidas del usuario $originUser")
         } catch (e: SQLException) {
             log.error(e.message, e)
             //Hubo un error al obtener las sequencias y sus valores del remoto
@@ -168,18 +179,18 @@ class OracleClone(private val cloneObjectUtil: CloneObjectUtil): Task<String>() 
     private fun getOriginUserTableObject(originConnection: Connection, originUser: String): List<Table> {
         val result: MutableList<Table> = CopyOnWriteArrayList()
         try {
-            originConnection.metaData.getTables(null, originUser, "%", arrayOf("TABLE")).use { rsTables ->
+            originConnection.metaData.getTables(null, originUser, "%", arrayOf("TABLE")).use { rsTables: ResultSet ->
                 //Este objeto lo utilizaremos posteriormente para averiguar las tablas que hacen referencia a otras tablas
                 val tableDependencies: MutableMap<Table, MutableList<Table>> = HashMap()
                 //Este objeto lo usaremos para guardar la lista de tablas que serán posteriormente ordenadas
                 val tables: MutableList<Table> = CopyOnWriteArrayList()
                 while (rsTables.next()) {
-                    val tableName = rsTables.getString(3)
-                    val table = Table("$originUser.$tableName")
+                    val tableName: String = rsTables.getString(3)
+                    val table: Table = Table("$originUser.$tableName")
                     //Una vez obtenida la tabla, obtenemos los datos de las columnas de la misma (DDL)
-                    val rsColumns = originConnection.metaData.getColumns(null, originUser, tableName, "%")
+                    val rsColumns: ResultSet = originConnection.metaData.getColumns(null, originUser, tableName, "%")
                     while (rsColumns.next()) {
-                        val columnName = rsColumns.getString(4)
+                        val columnName: String = rsColumns.getString(4)
                         table.populateDDLColumnsCreateTable(columnName, rsColumns.getString(6), rsColumns.getString(7), rsColumns.getString(18))
                         table.populateDDLColumnsInsertInto(columnName)
                     }
@@ -188,7 +199,7 @@ class OracleClone(private val cloneObjectUtil: CloneObjectUtil): Task<String>() 
                     val tablePKs: PKUtil? = this.getTablePKs(originConnection, originUser, tableName)
                     log.debug("Claves primarias obtenidas de la tabla {}", tableName)
                     table.createPK(tablePKs)
-                    val alterTableFK = this.getTableFK(originConnection, originUser, tableName)
+                    val alterTableFK: List<String> = this.getTableFK(originConnection, originUser, tableName)
                     table.alterTableFK.addAll(alterTableFK)
                     log.debug("Claves foráneas obtenidas de la tabla {}", tableName)
                     val tableData: List<Row> = this.getTableRows(originConnection, table.getSelectQuery())
@@ -211,25 +222,24 @@ class OracleClone(private val cloneObjectUtil: CloneObjectUtil): Task<String>() 
     }
 
     private fun recreateTarget(targetConnection: Connection){
-        //TODO cambiar a recreateTarget
-        targetConnection.prepareStatement("SELECT USERNAME FROM ALL_USERS").use{ ps->
+        targetConnection.prepareStatement("SELECT USERNAME FROM ALL_USERS").use{ ps: PreparedStatement ->
             this.executeQuery(targetConnection, "ALTER SESSION SET \"_ORACLE_SCRIPT\" = TRUE")
-            ps.executeQuery().use{ rs->
+            ps.executeQuery().use{ rs: ResultSet ->
                 while(rs.next()){
-                    val username = rs.getString(1)
+                    val username: String = rs.getString(1)
                     if(this.cloneObjectUtil.origin.users?.any{ it.username == username } == true){
                         this.executeQuery(targetConnection, "DROP USER $username CASCADE")
-                        println("Usuario $username eliminado")
+                        log.info("Usuario $username eliminado")
                     }
                 }
             }
-            this.createTargetUsers(targetConnection)
-            this.executeQuery(targetConnection, "ALTER PROFILE DEFAULT LIMIT PASSWORD_LIFE_TIME UNLIMITED")
         }
+        this.createTargetUsers(targetConnection)
+        this.executeQuery(targetConnection, "ALTER PROFILE DEFAULT LIMIT PASSWORD_LIFE_TIME UNLIMITED")
     }
 
     private fun createTargetUsers(targetConnection: Connection) {
-        this.cloneObjectUtil.origin.users?.forEach { user ->
+        this.cloneObjectUtil.origin.users?.forEach { user: User ->
             this.executeQuery(targetConnection, "CREATE USER ${user.username} IDENTIFIED BY ${user.password}")
             //TODO tener cuidado con el grant all a la hora de hacer el clonado en sitios sensibles
             this.executeQuery(targetConnection, "GRANT ALL PRIVILEGES TO ${user.username}")
@@ -246,21 +256,21 @@ class OracleClone(private val cloneObjectUtil: CloneObjectUtil): Task<String>() 
     private fun getOriginUserComments(originConnection: Connection, originUser: String): List<Comment> {
         val result: MutableList<Comment> = CopyOnWriteArrayList()
         try {
-            originConnection.prepareStatement("SELECT table_name, comments FROM user_tab_comments").use { psTables ->
-                originConnection.prepareStatement("SELECT table_name, column_name, comments FROM user_col_comments").use { psColumns ->
-                    psTables.executeQuery().use { rsTables ->
-                        psColumns.executeQuery().use { rsColumns ->
+            originConnection.prepareStatement("SELECT table_name, comments FROM user_tab_comments").use { psTables: PreparedStatement ->
+                originConnection.prepareStatement("SELECT table_name, column_name, comments FROM user_col_comments").use { psColumns: PreparedStatement ->
+                    psTables.executeQuery().use { rsTables: ResultSet ->
+                        psColumns.executeQuery().use { rsColumns: ResultSet ->
                             while (rsTables.next()) {
-                                val tableName = rsTables.getString(1)
-                                val comment = rsTables.getString(2)
+                                val tableName: String = rsTables.getString(1)
+                                val comment: String? = rsTables.getString(2)
                                 if (comment != null && !tableName.contains("BIN$")) {
                                     result.add(Comment("$originUser.$tableName", null, comment))
                                 }
                             }
                             while (rsColumns.next()) {
-                                val tableName = rsColumns.getString(1)
-                                val columnName = rsColumns.getString(2)
-                                val comment = rsColumns.getString(3)
+                                val tableName: String = rsColumns.getString(1)
+                                val columnName: String = rsColumns.getString(2)
+                                val comment: String? = rsColumns.getString(3)
                                 if (comment != null && !tableName.contains("BIN$")) {
                                     result.add(Comment("$originUser.$tableName", columnName, comment))
                                 }
@@ -287,10 +297,10 @@ class OracleClone(private val cloneObjectUtil: CloneObjectUtil): Task<String>() 
     private fun getTablePKs(originConnection: Connection, originUser: String, tableName: String): PKUtil? {
         val result = PKUtil()
         try {
-            originConnection.metaData.getPrimaryKeys(null, originUser, tableName).use { rsPK ->
+            originConnection.metaData.getPrimaryKeys(null, originUser, tableName).use { rsPK: ResultSet ->
                 while (rsPK.next()) {
-                    val pk = rsPK.getString(4)
-                    val pkName = rsPK.getString(6)
+                    val pk: String = rsPK.getString(4)
+                    val pkName: String = rsPK.getString(6)
                     if (pk.trim { it <= ' ' }.isNotEmpty()) {
                         result.pk = pkName
                         result.addPk(pk)
@@ -315,7 +325,7 @@ class OracleClone(private val cloneObjectUtil: CloneObjectUtil): Task<String>() 
     private fun getTableFK(originConnection: Connection, originUser: String, tableName: String): List<String> {
         val result: MutableList<String> = CopyOnWriteArrayList()
         try {
-            originConnection.metaData.getImportedKeys(null, originUser, tableName).use { rs ->
+            originConnection.metaData.getImportedKeys(null, originUser, tableName).use { rs: ResultSet ->
                 while (rs.next()) {
                     result.add("ALTER TABLE $originUser.$tableName ADD CONSTRAINT ${rs.getString(12)} FOREIGN KEY (${rs.getString(8)}) REFERENCES $originUser.${rs.getString(3)}")
                 }
@@ -337,8 +347,8 @@ class OracleClone(private val cloneObjectUtil: CloneObjectUtil): Task<String>() 
     private fun getTableRows(originConnection: Connection, selectQuery: String): List<Row> {
         val result: MutableList<Row> = CopyOnWriteArrayList()
         try {
-            originConnection.prepareStatement(selectQuery).use { ps ->
-                ps.executeQuery().use { rs ->
+            originConnection.prepareStatement(selectQuery).use { ps: PreparedStatement ->
+                ps.executeQuery().use { rs: ResultSet ->
                     while (rs.next()) {
                         val rowValues: MutableList<Any?> = CopyOnWriteArrayList()
                         for (i in 1..rs.metaData.columnCount) {
@@ -371,12 +381,12 @@ class OracleClone(private val cloneObjectUtil: CloneObjectUtil): Task<String>() 
     private fun getOriginUserViews(originConnection: Connection, originUser: String): List<String> {
         val result: MutableList<String> = CopyOnWriteArrayList()
         try {
-            originConnection.metaData.getTables(null, originUser, "%", arrayOf("VIEW")).use { rs ->
+            originConnection.metaData.getTables(null, originUser, "%", arrayOf("VIEW")).use { rs: ResultSet ->
                 while (rs.next()) {
-                    val viewName = rs.getString(3)
-                    val sb = StringBuilder("CREATE VIEW $originUser.$viewName AS ")
+                    val viewName: String = rs.getString(3)
+                    val sb: StringBuilder = StringBuilder("CREATE VIEW $originUser.$viewName AS ")
                     originConnection.prepareStatement("SELECT TEXT FROM ALL_VIEWS WHERE OWNER = '$originUser' AND VIEW_NAME = '$viewName'").use{
-                        it.executeQuery().use { rsView ->
+                        it.executeQuery().use { rsView: ResultSet ->
                             while (rsView.next()) {
                                 sb.append(rsView.getString(1))
                             }
@@ -403,9 +413,9 @@ class OracleClone(private val cloneObjectUtil: CloneObjectUtil): Task<String>() 
      */
     private fun updateTableDependencies(originConnection: Connection, originUser: String, table: Table, tableDependencies: Map<Table, MutableList<Table>>, tables: List<Table>) {
         try {
-            originConnection.metaData.getImportedKeys(null, originUser, table.tableName.split(".")[1]).use { rs ->
+            originConnection.metaData.getImportedKeys(null, originUser, table.tableName.split(".")[1]).use { rs: ResultSet ->
                 while (rs.next()) {
-                    val fkSchemaTableName = "$originUser.${rs.getString("PKTABLE_NAME")}"
+                    val fkSchemaTableName: String = "$originUser.${rs.getString("PKTABLE_NAME")}"
                     tables.forEach { table1: Table ->
                         if (table1.tableName == fkSchemaTableName) {
                             tableDependencies[table]?.add(table1)
@@ -427,7 +437,7 @@ class OracleClone(private val cloneObjectUtil: CloneObjectUtil): Task<String>() 
      */
     private fun executeQuery(target: Connection, query: String?) {
         try {
-            target.prepareStatement(query).use { ps ->
+            target.prepareStatement(query).use { ps: PreparedStatement ->
                 val executed: Int = ps.executeUpdate()
                 log.trace("Query executed: {} rows affected", executed)
                 log.trace("Query executed: $query")
@@ -447,29 +457,22 @@ class OracleClone(private val cloneObjectUtil: CloneObjectUtil): Task<String>() 
      * @param insertQuery query de insert into
      */
     private fun insertData(target: Connection, rows: List<Row>, insertQuery: String) {
-        rows.forEach{ row->
+        rows.forEach{ row: Row->
             try {
-                target.prepareStatement(insertQuery).use { ps ->
+                target.prepareStatement(insertQuery).use { ps: PreparedStatement ->
                     for((index, value) in row.columnValues.withIndex()){
-                        when(value){
-                            is SpecialDBObject -> {
-                                when (val data: Any = value.data) {
-                                    is ByteArray -> {
-                                        val b: Blob = target.createBlob()
-                                        b.setBytes(1, data)
-                                        ps.setObject(index + 1, b)
-                                    }
-
-                                    is String -> {
-                                        val c: Clob = target.createClob()
-                                        c.setString(1, data)
-                                        ps.setObject(index + 1, c)
-                                    }
-
-                                    else -> ps.setObject(index + 1, data)
-                                }
+                        if(value is SpecialDBObject){
+                            if(value.data is ByteArray){
+                                val b: Blob = target.createBlob()
+                                b.setBytes(1, value.data)
+                                ps.setObject(index + 1, b)
+                            }else if(value.data is String){
+                                val c: Clob = target.createClob()
+                                c.setString(1, value.data)
+                                ps.setObject(index + 1, c)
                             }
-                            else -> ps.setObject(index + 1, value)
+                        }else{
+                            ps.setObject(index + 1, value)
                         }
                     }
                     val executed: Int = ps.executeUpdate()

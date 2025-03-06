@@ -49,13 +49,14 @@ class Docker(private val dockerParams: DockerParams) : Task<String>() {
                         when {
                             (line as String).contains("Pulling fs layer") -> this.downloadProgressStrings.add(line?.split(":")!![0])
                             (line as String).contains("Download complete") -> {
-                                val beforeSize = this.downloadProgressStrings.size
+                                val beforeSize: Int = this.downloadProgressStrings.size
                                 this.downloadProgressStrings.remove(line?.split(":")!![0])
                                 //TODO revisar si se puede mejorar este progreso
-                                this.updateProgress((((actualProgress - 0.1) - (this.downloadProgressStrings.size.toDouble() / beforeSize))) + actualProgress, this.commands.size.toDouble())
+                                val progress: Double = (actualProgress - 0.1) - (this.downloadProgressStrings.size.toDouble() / beforeSize) + actualProgress
+                                this.updateProgress(progress, this.commands.size.toDouble())
                             }
                             (line as String).contains("% complete") -> {
-                                val progress = (line?.split(" ")!![0].split("%")[0].toDouble() / 100) + actualProgress
+                                val progress: Double = (line?.split(" ")!![0].split("%")[0].toDouble() / 100) + actualProgress
                                 this.updateProgress(progress, this.commands.size.toDouble())
                             }
                             (line as String).contains("DATABASE IS READY TO USE!") -> {

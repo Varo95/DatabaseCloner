@@ -9,7 +9,9 @@ import org.slf4j.LoggerFactory
 import java.sql.Blob
 import java.sql.Clob
 import java.sql.Connection
+import java.sql.PreparedStatement
 import java.sql.SQLException
+import java.sql.Statement
 
 /**
  * This class will be usable for cloning databases, making general code here and specific code in the subclasses
@@ -27,15 +29,7 @@ abstract class DatabaseCloner(private val cloneObjectUtil: CloneObjectUtil) : Ta
         return ""
     }
 
-    fun initClone(): Unit{
-
-    }
-
-    fun createUsers(): Unit{
-
-    }
-
-    fun deleteUsers(): Unit{
+    fun recreateUsers(): Unit{
 
     }
 
@@ -43,9 +37,9 @@ abstract class DatabaseCloner(private val cloneObjectUtil: CloneObjectUtil) : Ta
 
     fun executeQuery(target: Connection, query: String?): Unit {
         try {
-            target.prepareStatement(query).use { ps ->
-                val executed: Int = ps.executeUpdate()
-                log.trace("Query executed: {} rows affected", executed)
+            target.createStatement().use { statement: Statement ->
+                val executed: Boolean = statement.execute(query)
+                log.trace("Query executed: {}", executed)
                 log.trace("Query executed: {}", query)
                 this.updateProgress(++this.actualProgressBar, this.maxProgressBar)
             }
@@ -58,25 +52,20 @@ abstract class DatabaseCloner(private val cloneObjectUtil: CloneObjectUtil) : Ta
     fun insertData(target: Connection, rows: List<Row>, insertQuery: String) {
         rows.forEach { row ->
             try {
-                target.prepareStatement(insertQuery).use { ps ->
-                    for ((index, value) in row.columnValues.withIndex()) {
-                        when (value) {
-                            is SpecialDBObject -> {
-                                when (val data: Any = value.data) {
-                                    is ByteArray -> {
-                                        val b: Blob = target.createBlob()
-                                        b.setBytes(1, data)
-                                        ps.setObject(index + 1, b)
-                                    }
-                                    is String -> {
-                                        val c: Clob = target.createClob()
-                                        c.setString(1, data)
-                                        ps.setObject(index + 1, c)
-                                    }
-                                    else -> ps.setObject(index + 1, data)
-                                }
+                target.prepareStatement(insertQuery).use { ps: PreparedStatement ->
+                    for((index: Int, value: Any?) in row.columnValues.withIndex()){
+                        if(value is SpecialDBObject){
+                            if(value.data is ByteArray){
+                                val b: Blob = target.createBlob()
+                                b.setBytes(1, value.data)
+                                ps.setObject(index + 1, b)
+                            }else if(value.data is String){
+                                val c: Clob = target.createClob()
+                                c.setString(1, value.data)
+                                ps.setObject(index + 1, c)
                             }
-                            else -> ps.setObject(index + 1, value)
+                        }else{
+                            ps.setObject(index + 1, value)
                         }
                     }
                     val executed: Int = ps.executeUpdate()

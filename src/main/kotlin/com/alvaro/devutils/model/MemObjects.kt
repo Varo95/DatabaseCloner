@@ -1,7 +1,5 @@
 package com.alvaro.devutils.model
 
-import javafx.beans.property.SimpleStringProperty
-import javafx.concurrent.Task
 import java.util.Objects
 import java.util.concurrent.CopyOnWriteArrayList
 import kotlin.math.max
@@ -143,6 +141,16 @@ data class Row(val columnValues: List<Any?>)
 data class CloneObjectUtil(val recreateTarget: Boolean, val origin: DatabaseConnection, val target: DatabaseConnection)
 
 /**
+ * Objeto que representa las secuencias de una tabla.
+ * Se creó para agrupar las secuencias y las tablas.
+ * Primero se crean las secuencias y luego las tablas.
+ * @param sequences Lista de secuencias. Cada una deberá de ser en el formato 'USUARIO.SEQ' para oracle. EJ: 'CREATE SEQUENCE USUARIO.SEQ'
+ * @param tables Lista de tablas. Cada una deberá de ser en el formato 'USUARIO.TABLA' para oracle. EJ: 'CREATE TABLE USUARIO.TABLA'
+ */
+@JvmRecord
+data class UserSequencesTable(val sequences: List<String>, val tables: List<Table>)
+
+/**
  * Objeto que agrupa las vistas y los comentarios.
  * Se creó porque las vistas y los comentarios necesitan tener las tablas creadas previamente.
  * Utilizamos este objeto al final del proceso de clonado para traernos los últimos datos
@@ -153,14 +161,13 @@ data class CloneObjectUtil(val recreateTarget: Boolean, val origin: DatabaseConn
 data class UserViewsComments(val views: List<String>, val comments: List<Comment>)
 
 /**
- * Objeto que representa las secuencias de una tabla.
- * Se creó para agrupar las secuencias y las tablas.
- * Primero se crean las secuencias y luego las tablas.
- * @param sequences Lista de secuencias. Cada una deberá de ser en el formato 'USUARIO.SEQ' para oracle. EJ: 'CREATE SEQUENCE USUARIO.SEQ'
- * @param tables Lista de tablas. Cada una deberá de ser en el formato 'USUARIO.TABLA' para oracle. EJ: 'CREATE TABLE USUARIO.TABLA'
+ * Objeto que agrupa los datos de las secuencias y las vistas.
+ * Se creó para poder devolver los datos de las secuencias y las vistas en un solo objeto.
+ * @param userSequencesTable Objeto que contiene las secuencias y las tablas
+ * @param userViewsComments Objeto que contiene las vistas y los comentarios
  */
 @JvmRecord
-data class UserSequencesTable(val sequences: List<String>, val tables: List<Table>)
+data class UserData(val userSequencesTable: UserSequencesTable?, val userViewsComments: UserViewsComments?)
 
 /**
  * Objeto que representa un objeto especial en BBDD como un Blob ó Clob.

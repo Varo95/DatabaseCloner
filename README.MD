@@ -4,7 +4,7 @@ This is a project for clone database from remote to local
 # What do you need
 Maybe...Nothing, just the artifact to download and run it from your Windows, Linux or Mac OS
 
-# Freatures
+# Features
 - Create a docker container to storage the cloned database
 - Clone Oracle Database
 - Clone MySQL Database (in progress)
@@ -32,7 +32,7 @@ Then run the program again and select 'Origin' and 'Target' database, this will 
 
 
 # How to run Oracle Database on your local machine
-First, docker desktop installed and running
+First, docker desktop installed and running.
 Then you must have oracle account accepting their conditions. Feel free to register here: https://container-registry.oracle.com/
 
 To accept their conditions, at the page provide before, click on Database->enterprise
@@ -61,3 +61,8 @@ Actually are available:
 - 19.3.0.0
 - 12.2.0.1
 - 12.2.0.1-slim
+
+# Developers Note:
+- Compiling .exe and .msi on Windows 11 Pro-> Success, no failures
+- Compiling .deb on Debian 12-> We need install binutils and fakeroot to compile .deb
+- Compiling .dmg on Mac OS -> Success, no failures

@@ -139,3 +139,11 @@ class DockerParams : Serializable {
         private const val serialVersionUID = 1L
     }
 }
+
+@XmlRootElement(name = "Git")
+@XmlAccessorType(XmlAccessType.FIELD)
+class GitRoot: Serializable{
+    @XmlAttribute
+    var defaultBranch: String? = null
+
+}
