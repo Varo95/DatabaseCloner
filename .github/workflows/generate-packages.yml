@@ -59,7 +59,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ needs.create-release.outputs.upload_url }}
-          asset_path: ./build/compose/main/msi
+          asset_path: ./build/compose/binaries/main/msi
           asset_name: devutils-${{github.ref_name}}.msi
           asset_content_type: application/x-msi
 
@@ -70,7 +70,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ needs.create-release.outputs.upload_url }}
-          asset_path: ./build/compose/deb
+          asset_path: ./build/compose/binaries/deb
           asset_name: devutils-${{github.ref_name}}.deb
           asset_content_type: application/x-deb
 
@@ -81,6 +81,6 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ needs.create-release.outputs.upload_url }}
-          asset_path: ./build/compose/main/dmg
+          asset_path: ./build/compose/binaries/main/dmg
           asset_name: devutils-${{github.ref_name}}.dmg
           asset_content_type: application/x-apple-diskimage
