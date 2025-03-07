@@ -87,7 +87,7 @@ jobs:
         with:
           upload_url: ${{ needs.create-release.outputs.package }}
           asset_path: ./main/msi
-          asset_name: devutils-${{github.event.release.tag_name}}.msi
+          asset_name: devutils-${{github.ref}}.msi
           asset_content_type: application/x-msi
 
       - name: Upload release assets
@@ -97,7 +97,7 @@ jobs:
         with:
           upload_url: ${{ needs.create-release.outputs.package }}
           asset_path: ./main/deb
-          asset_name: devutils-${{github.event.release.tag_name}}.deb
+          asset_name: devutils-${{github.ref}}.deb
           asset_content_type: application/x-deb
 
       - name: Upload release assets
@@ -105,7 +105,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          upload_url: ${{ needs.create-release.outputs.package }}
+          upload_url: ${{ needs.create-release.outputs.upload_url }}
           asset_path: ./main/dmg
-          asset_name: devutils-${{github.event.release.tag_name}}.dmg
+          asset_name: devutils-${{github.ref}}.dmg
           asset_content_type: application/x-apple-diskimage
