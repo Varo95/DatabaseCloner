@@ -70,8 +70,8 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ needs.create-release.outputs.upload_url }}
-          asset_path: ./build/compose/binaries/main/deb/databasecloner-${{github.ref_name}}_amd64.deb
-          asset_name: databasecloner-${{github.ref_name}}_amd64.deb
+          asset_path: ./build/compose/binaries/main/deb/databasecloner_${{github.ref_name}}_amd64.deb
+          asset_name: databasecloner_${{github.ref_name}}_amd64.deb
           asset_content_type: application/x-deb
 
       - name: Upload MacOS DMG
