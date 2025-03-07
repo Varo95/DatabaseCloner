@@ -9,7 +9,7 @@ on:
 jobs:
   create-release:
     permissions: write-all
-    name: Generate Packages
+    name: Generate Release
     runs-on: ubuntu-latest
     outputs:
       package: ${{ steps.generate-packages.outputs.upload_url }}
@@ -45,7 +45,7 @@ jobs:
           java-version: '21'
 
       - name: Change wrapper permissions
-        if: matrix.os == 'ubuntu-latest'
+        if: matrix.os == 'ubuntu-latest' || matrix.os == 'macos-latest
         run: chmod +x ./gradlew
 
       - name: Build with Gradle
