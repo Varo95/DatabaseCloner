@@ -50,61 +50,35 @@ jobs:
       - name: Build with Gradle
         run: ./gradlew packageDistributionForCurrentOS
 
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ matrix.os }}-package
-          path: build/compose/binaries
-
-  release-desktop:
-    permissions: write-all
-    needs: build-desktop
-    runs-on: ubuntu-latest
-    steps:
-      - name: Download Windows package
-        uses: actions/download-artifact@v4
-        with:
-          name: windows-latest-package
-          path: ./main/msi
-
-      - name: Download Linux package
-        uses: actions/download-artifact@v4
-        with:
-          name: ubuntu-latest-package
-          path: ./main/deb
-
-      - name: Download macOS package
-        uses: actions/download-artifact@v4
-        with:
-          name: macos-latest-package
-          path: ./main/dmg
-
-      - name: Upload release assets
+      - name: Upload Windows MSI
+        if: matrix.os == 'windows-latest'
         uses: actions/upload-release-asset@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          upload_url: ${{ github.event.release.upload_url }}
-          asset_path: ./main/msi
+          upload_url: ${{ needs.create-release.outputs.upload_url }}
+          asset_path: ./build/compose/main/msi
           asset_name: devutils-${{github.ref_name}}.msi
           asset_content_type: application/x-msi
 
-      - name: Upload release assets
+      - name: Upload Debian Package
+        if: matrix.os == 'ubuntu-latest'
         uses: actions/upload-release-asset@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          upload_url: ${{ github.event.release.upload_url }}
-          asset_path: ./main/deb
+          upload_url: ${{ needs.create-release.outputs.upload_url }}
+          asset_path: ./build/compose/deb
           asset_name: devutils-${{github.ref_name}}.deb
           asset_content_type: application/x-deb
 
-      - name: Upload release assets
+      - name: Upload MacOS DMG
+        if: matrix.os == 'macos-latest'
         uses: actions/upload-release-asset@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          upload_url: ${{ github.event.release.upload_url }}
-          asset_path: ./main/dmg
+          upload_url: ${{ needs.create-release.outputs.upload_url }}
+          asset_path: ./build/compose/main/dmg
           asset_name: devutils-${{github.ref_name}}.dmg
           asset_content_type: application/x-apple-diskimage
