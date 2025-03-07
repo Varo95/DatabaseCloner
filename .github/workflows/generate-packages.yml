@@ -59,8 +59,8 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ needs.create-release.outputs.upload_url }}
-          asset_path: ./build/compose/binaries/main/msi/devutils-${{github.ref_name}}.msi
-          asset_name: devutils-${{github.ref_name}}.msi
+          asset_path: ./build/compose/binaries/main/msi/DatabaseCloner-${{github.ref_name}}.msi
+          asset_name: DatabaseCloner-${{github.ref_name}}.msi
           asset_content_type: application/x-msi
 
       - name: Upload Debian Package
@@ -70,8 +70,8 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ needs.create-release.outputs.upload_url }}
-          asset_path: ./build/compose/binaries/main/deb/devutils-${{github.ref_name}}.deb
-          asset_name: devutils-${{github.ref_name}}.deb
+          asset_path: ./build/compose/binaries/main/deb/databasecloner-${{github.ref_name}}_amd64.deb
+          asset_name: databasecloner-${{github.ref_name}}_amd64.deb
           asset_content_type: application/x-deb
 
       - name: Upload MacOS DMG
@@ -81,6 +81,6 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ needs.create-release.outputs.upload_url }}
-          asset_path: ./build/compose/binaries/main/dmg/devutils-${{github.ref_name}}.dmg
-          asset_name: devutils-${{github.ref_name}}.dmg
+          asset_path: ./build/compose/binaries/main/dmg/DatabaseCloner-${{github.ref_name}}.dmg
+          asset_name: DatabaseCloner-${{github.ref_name}}.dmg
           asset_content_type: application/x-apple-diskimage
