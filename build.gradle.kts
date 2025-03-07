@@ -3,10 +3,10 @@ import org.jetbrains.compose.desktop.application.dsl.TargetFormat
 plugins {
     `java-library`
     `maven-publish`
-    kotlin("jvm") version "2.1.0"
+    kotlin("jvm") version "2.1.10"
     id("org.openjfx.javafxplugin") version "0.1.0"
-    id("org.jetbrains.compose") version "1.8.0-alpha03"
-    id("org.jetbrains.kotlin.plugin.compose") version "2.1.0"
+    id("org.jetbrains.compose") version "1.8.0-alpha04"
+    id("org.jetbrains.kotlin.plugin.compose") version "2.1.10"
 }
 
 javafx {
@@ -31,11 +31,14 @@ dependencies {
     implementation(libs.org.apache.logging.log4j.log4j.api)
     implementation(libs.org.apache.logging.log4j.log4j.core)
     implementation(libs.org.apache.logging.log4j.log4j.slf4j.impl)
+    implementation(libs.org.mariadb.database.jdbc.mariadb)
+    implementation(libs.org.postgresql.database.jdbc)
     implementation(libs.com.oracle.database.jdbc.ojdbc11)
+    implementation(libs.com.microsoft.sqlserver.jdbc)
     val fxVersion = "23.0.2"
     val fxModules: List<String> = listOf("javafx-base", "javafx-controls", "javafx-fxml", "javafx-graphics")
 
-    fxModules.forEach { module ->
+    fxModules.forEach { module: String ->
         implementation("org.openjfx:$module:$fxVersion")
     }
     implementation(compose.desktop.currentOs)
@@ -72,6 +75,21 @@ compose.desktop {
         nativeDistributions {
             includeAllModules = true
             targetFormats(TargetFormat.Exe,TargetFormat.Dmg, TargetFormat.Msi, TargetFormat.Deb)
+            macOS {
+                iconFile.set(project.file("/src/main/resources/com/alvaro/devutils/icon.icns"))
+                vendor = "Alvaro's Software"
+                appStore = false
+            }
+            windows {
+                iconFile.set(project.file("/src/main/resources/com/alvaro/devutils/icon.ico"))
+                vendor = "Alvaro's Software"
+                perUserInstall = true
+            }
+            linux {
+                iconFile.set(project.file("/src/main/resources/com/alvaro/devutils/icon.png"))
+                vendor = "Alvaro's Software"
+                debMaintainer = "Alvaro"
+            }
             packageName = description
             packageVersion = version.toString()
         }

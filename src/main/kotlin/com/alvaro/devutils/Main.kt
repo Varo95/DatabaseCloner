@@ -8,7 +8,6 @@ import javafx.stage.Stage
 import java.io.IOException
 import java.util.ResourceBundle
 
-
 open class MyApp : Application() {
 
     private val bundle: ResourceBundle = ResourceBundle.getBundle("i18n.strings")

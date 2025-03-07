@@ -97,7 +97,7 @@ class User : Serializable {
     }
 }
 
-enum class ImageType { ORACLE, POSTGRESQL, MYSQL, SQLSERVER }
+enum class ImageType { ORACLE, POSTGRESQL, MARIADB, SQLSERVER }
 
 @XmlRootElement(name = "DatabaseConnection")
 @XmlAccessorType(XmlAccessType.FIELD)

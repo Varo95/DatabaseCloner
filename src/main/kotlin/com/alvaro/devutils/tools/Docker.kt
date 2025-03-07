@@ -3,6 +3,7 @@ package com.alvaro.devutils.tools
 import com.alvaro.devutils.model.DockerParams
 import com.alvaro.devutils.model.ImageType
 import javafx.concurrent.Task
+import java.util.Locale
 
 /**
  * Clase que se encarga de ejecutar los comandos de docker. Esta clase hereda de Process para poder ejecutar los comandos
@@ -15,18 +16,37 @@ class Docker(private val dockerParams: DockerParams) : Task<String>() {
     private val commands: Array<String>
 
     init {
+        val imageVersion: String = this.dockerParams.imageVersion ?: "latest"
         when (this.dockerParams.imageType) {
             ImageType.ORACLE -> {
                 this.commands = arrayOf(
                     "docker login --username=${this.dockerParams.user?.username} --password=${this.dockerParams.user?.password} container-registry.oracle.com",
                     "docker volume create ${this.dockerParams.volumeName}",
-                    "docker pull container-registry.oracle.com/database/enterprise:${this.dockerParams.imageVersion}",
-                    "docker run --name ${this.dockerParams.containerName} --restart always -e ORACLE_SID=ee -e ORACLE_PDB=ORCLPDB1 -e ORACLE_PWD=${this.dockerParams.rootPassword} -p${this.dockerParams.containerPort}:1521 -v ${this.dockerParams.volumeName}:/opt/oracle/oradata --health-cmd \"CMD,sqlplus,-L,sys/Oracle_123@//localhost:1521/ORCLCDB as sysdba,@healthcheck.sql\" --health-interval 30s --health-retries 5 --health-timeout 10s container-registry.oracle.com/database/enterprise:${this.dockerParams.imageVersion}"
+                    "docker pull container-registry.oracle.com/database/enterprise:${imageVersion}",
+                    "docker run --name ${this.dockerParams.containerName} --restart always -e ORACLE_SID=ee -e ORACLE_PDB=ORCLPDB1 -e ORACLE_PWD=${this.dockerParams.rootPassword} -p${this.dockerParams.containerPort}:1521 -v ${this.dockerParams.volumeName}:/opt/oracle/oradata container-registry.oracle.com/database/enterprise:${imageVersion}"
                 )
             }
-            ImageType.POSTGRESQL -> TODO()
-            ImageType.MYSQL -> TODO()
-            ImageType.SQLSERVER -> TODO()
+            ImageType.MARIADB -> {
+                this.commands = arrayOf(
+                    "docker volume create ${this.dockerParams.volumeName}",
+                    "docker pull mariadb:${imageVersion}",
+                    "docker run --name ${this.dockerParams.containerName} --restart always -e MYSQL_ROOT_PASSWORD=${this.dockerParams.rootPassword} -p${this.dockerParams.containerPort}:3306 -v ${this.dockerParams.volumeName}:/var/lib/mysql mariadb:${imageVersion}"
+                )
+            }
+            ImageType.POSTGRESQL -> {
+                this.commands = arrayOf(
+                    "docker volume create ${this.dockerParams.volumeName}",
+                    "docker pull postgres:${imageVersion}",
+                    "docker run --name ${this.dockerParams.containerName} --restart always -e POSTGRES_PASSWORD=${this.dockerParams.rootPassword} -p${this.dockerParams.containerPort}:5432 -v ${this.dockerParams.volumeName}:/var/lib/postgresql/data postgres:${imageVersion}"
+                )
+            }
+            ImageType.SQLSERVER -> {
+                this.commands = arrayOf(
+                    "docker volume create ${this.dockerParams.volumeName}",
+                    "docker pull mcr.microsoft.com/mssql/server:${imageVersion}",
+                    "docker run --name ${this.dockerParams.containerName} --restart always -e ACCEPT_EULA=Y -e SA_PASSWORD=${this.dockerParams.rootPassword} -p${this.dockerParams.containerPort}:1433 -v ${this.dockerParams.volumeName}:/var/opt/mssql mcr.microsoft.com/mssql/server:${imageVersion}"
+                )
+            }
             null -> this.commands = arrayOf()
         }
     }
@@ -34,12 +54,12 @@ class Docker(private val dockerParams: DockerParams) : Task<String>() {
     override fun call(): String {
         try {
             for ((actualProgress, command) in this.commands.withIndex()) {
-                val proc: java.lang.Process = ProcessBuilder(command.split(" ")).start()
+                val proc: Process = ProcessBuilder(command.split(" ")).start()
                 proc.inputStream.reader().buffered().use { reader ->
                     val outputText: String = when {
                         command.contains("docker login") -> "Logueando en el registry de oracle"
                         command.contains("docker volume create") -> "Creando volumen ${this.dockerParams.volumeName}"
-                        command.contains("docker pull") -> "Descargando imagen de oracle: ${this.dockerParams.imageVersion}"
+                        command.contains("docker pull") -> "Descargando imagen de ${this.dockerParams.imageType.toString().lowercase(Locale.getDefault())}: ${this.dockerParams.imageVersion}"
                         command.contains("docker run") -> "Creando contenedor ${this.dockerParams.containerName}"
                         else -> ""
                     }
@@ -51,7 +71,6 @@ class Docker(private val dockerParams: DockerParams) : Task<String>() {
                             (line as String).contains("Download complete") -> {
                                 val beforeSize: Int = this.downloadProgressStrings.size
                                 this.downloadProgressStrings.remove(line?.split(":")!![0])
-                                //TODO revisar si se puede mejorar este progreso
                                 val progress: Double = (actualProgress - 0.1) - (this.downloadProgressStrings.size.toDouble() / beforeSize) + actualProgress
                                 this.updateProgress(progress, this.commands.size.toDouble())
                             }
@@ -59,7 +78,10 @@ class Docker(private val dockerParams: DockerParams) : Task<String>() {
                                 val progress: Double = (line?.split(" ")!![0].split("%")[0].toDouble() / 100) + actualProgress
                                 this.updateProgress(progress, this.commands.size.toDouble())
                             }
-                            (line as String).contains("DATABASE IS READY TO USE!") -> {
+                            (line as String).contains("DATABASE IS READY TO USE!") ||
+                            (line as String).contains("MariaDB init process done. Ready for start up.") ||
+                            (line as String).contains("database system is ready to accept connections") ||
+                            (line as String).contains("Recovery is complete. This is an informational message only. No user action is required.") -> {
                                 reader.close()
                                 proc.destroy()
                                 break

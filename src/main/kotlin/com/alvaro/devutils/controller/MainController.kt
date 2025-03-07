@@ -4,10 +4,11 @@ import com.alvaro.devutils.model.CloneObjectUtil
 import com.alvaro.devutils.model.DatabaseConnection
 import com.alvaro.devutils.model.XMLWrapper
 import com.alvaro.devutils.tools.Docker
+import com.alvaro.devutils.tools.MariaDBClone
 import com.alvaro.devutils.tools.OracleClone
 import com.alvaro.devutils.tools.Utils
 import javafx.application.Platform
-import javafx.beans.value.ObservableValue
+import javafx.beans.binding.Bindings
 import javafx.collections.FXCollections
 import javafx.concurrent.WorkerStateEvent
 import javafx.fxml.FXML
@@ -16,7 +17,6 @@ import javafx.scene.control.CheckBox
 import javafx.scene.control.ComboBox
 import javafx.scene.control.Label
 import javafx.scene.control.ProgressBar
-import java.time.LocalDateTime
 import java.util.concurrent.TimeUnit
 
 open class MainController {
@@ -43,7 +43,7 @@ open class MainController {
 
     @FXML
     protected fun initialize() {
-        this.cbDBType.items.addAll("Oracle", "PostgreSQL", "MySQL", "SQL Server")
+        this.cbDBType.items.addAll("Oracle", "PostgreSQL", "MariaDB", "SQL Server")
         val xmlWrapper: XMLWrapper? = Utils.readDBFromFile()
         if(xmlWrapper != null){
             this.cbOrigin.items.addAll(FXCollections.observableList(xmlWrapper.databaseConnections))
@@ -63,7 +63,9 @@ open class MainController {
                 dockerThread = Thread(docker)
                 dockerThread.isDaemon = true
             }
-            if(this.cbOrigin.selectionModel.selectedItem == null || this.cbTarget.selectionModel.selectedItem == null){
+            if((this.cbOrigin.selectionModel.selectedItem == null || this.cbTarget.selectionModel.selectedItem == null) ||
+                (this.cbOrigin.selectionModel.selectedItem == this.cbTarget.selectionModel.selectedItem) ||
+                (this.cbOrigin.selectionModel.selectedItem == null && this.cbTarget.selectionModel.selectedItem == null)){
                 return@setOnAction
             }
             val recreateUsers: Boolean = this.cbUsers.isSelected
@@ -84,8 +86,16 @@ open class MainController {
                 "PostgreSQL" -> {
                     println("PostgreSQL")
                 }
-                "MySQL" -> {
-                    println("MySQL")
+                "MariaDB" -> {
+                    val cloneData: MariaDBClone = MariaDBClone(cloneObjectUtil)
+                    cloneData.setOnRunning {
+                        this.bindProperties(it)
+                    }
+                    cloneData.setOnSucceeded {
+                        this.unbindProperties()
+                    }
+                    cloneTask = Thread(cloneData)
+                    cloneTask.isDaemon = true
                 }
                 "SQL Server" -> {
                     println("SQL Server")
@@ -124,7 +134,7 @@ open class MainController {
 
     private fun bindProperties(worker: WorkerStateEvent){
         this.progressBar.progressProperty().bind(worker.source.progressProperty())
-        this.lbGeneral.textProperty().bind(worker.source.valueProperty() as ObservableValue<out String>)
+        this.lbGeneral.textProperty().bind(Bindings.createStringBinding({ (worker.source.valueProperty().value?: "").toString() }, worker.source.valueProperty()))
         this.lbSpecific.textProperty().bind(worker.source.messageProperty())
         this.disableEnableControls(true)
     }

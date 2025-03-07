@@ -161,15 +161,6 @@ data class UserSequencesTable(val sequences: List<String>, val tables: List<Tabl
 data class UserViewsComments(val views: List<String>, val comments: List<Comment>)
 
 /**
- * Objeto que agrupa los datos de las secuencias y las vistas.
- * Se creó para poder devolver los datos de las secuencias y las vistas en un solo objeto.
- * @param userSequencesTable Objeto que contiene las secuencias y las tablas
- * @param userViewsComments Objeto que contiene las vistas y los comentarios
- */
-@JvmRecord
-data class UserData(val userSequencesTable: UserSequencesTable?, val userViewsComments: UserViewsComments?)
-
-/**
  * Objeto que representa un objeto especial en BBDD como un Blob ó Clob.
  * Debido a que no se pueden pasar directamente a la BBDD, se necesita un objeto especial para poder tratarlos.
  * En el codigo, detectamos que es un objeto especial y creamos el respectivo en la BBDD de destino, copiando posteriormente los datos que este contiene.

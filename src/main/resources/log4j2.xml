@@ -7,10 +7,16 @@
         <File name="OracleClone" filename="logs/OracleClone.log">
             <PatternLayout pattern="%d{yyyy-MM-dd HH:mm:ss} [%t] %-5level %-50c{1.} - %msg %n"/>
         </File>
+        <File name="MYSQLClone" filename="logs/MYSQLClone.log">
+            <PatternLayout pattern="%d{yyyy-MM-dd HH:mm:ss} [%t] %-5level %-50c{1.} - %msg %n"/>
+        </File>
     </Appenders>
     <Loggers>
         <Logger name="com.alvaro.database.tools.OracleClone" level="info">
             <AppenderRef ref="OracleClone"/>
+        </Logger>
+        <Logger name="com.alvaro.database.tools.MYSQLClone" level="info">
+            <AppenderRef ref="MYSQLClone"/>
         </Logger>
         <Logger name="com.sun.javafx.logging" level="error">
             <AppenderRef ref="Console"/>
